@@ -96,6 +96,23 @@ def _map_columns(df: pd.DataFrame, field_map: dict[str, str]) -> pd.DataFrame:
     return df.rename(columns=rename)
 
 
+def _promote_item_name(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """When a spreadsheet is imported into monday, the first column becomes the
+    board's *item name*, returned by the API as ``item_name`` rather than a normal
+    column value. For both boards that item name IS the deal name. If the mapped
+    ``target`` column is absent (or blank) but ``item_name`` exists, use it.
+    """
+    if "item_name" not in df.columns:
+        return df
+    if target not in df.columns:
+        df[target] = df["item_name"]
+    else:
+        # Fill blanks in the mapped column from the item name.
+        df[target] = df[target].where(df[target].notna() & (df[target].astype(str).str.strip() != ""),
+                                      df["item_name"])
+    return df
+
+
 def _is_null(value: Any) -> bool:
     if value is None:
         return True
@@ -192,6 +209,7 @@ def clean_deals(records: list[dict[str, Any]]) -> CleanResult:
         return CleanResult(df=raw, caveats=["Deals board returned no rows."], row_count_raw=0)
 
     df = _map_columns(raw, DEALS_FIELD_MAP)
+    df = _promote_item_name(df, "deal_name")
 
     # Drop monday helper columns we don't need.
     df = df.drop(columns=[c for c in ("item_id", "item_name") if c in df.columns], errors="ignore")
@@ -266,6 +284,7 @@ def clean_work_orders(records: list[dict[str, Any]]) -> CleanResult:
         return CleanResult(df=raw, caveats=["Work Orders board returned no rows."], row_count_raw=0)
 
     df = _map_columns(raw, WORK_ORDER_FIELD_MAP)
+    df = _promote_item_name(df, "deal_name")
     df = df.drop(columns=[c for c in ("item_id", "item_name") if c in df.columns], errors="ignore")
 
     text_cols = (
