@@ -30,7 +30,8 @@ data on the fly, and returning insights with clear data-quality caveats.
         |          analytics.py (BI logic)         |
         |  pipeline_summary / revenue_by_sector /  |
         |  sector_performance / operational_metrics|
-        |  / leadership_update / list_dimensions   |
+        |  leadership_update / won_deals_execution |
+        |  (cross-board join) / list_dimensions    |
         +--------------------+---------------------+
                              |  reads cleaned DataFrames
                              v
@@ -83,19 +84,29 @@ See `DECISION_LOG.md` for trade-offs and alternatives considered.
 
 ## 3. Project structure
 
+Files live at the repository root (the deployed entry point is `streamlit_app.py`).
+
 ```
-app/
-  streamlit_app.py          # chat UI (entry point)
-  requirements.txt
-  .env.example              # copy to .env and fill in
-  bi_agent/
-    config.py               # env / secrets loading
-    monday_client.py        # read-only monday.com GraphQL client (paginated)
-    normalize.py            # pandas cleaning + data-quality caveats
-    data_store.py           # fetch -> clean -> cache bridge
-    analytics.py            # deterministic BI computations (tool bodies)
-    agent.py                # Gemini tool-calling agent
+streamlit_app.py            # dashboard + chat UI (entry point)
+requirements.txt
+runtime.txt                 # pins the Python version for hosting
+.env.example                # copy to .env and fill in
+.streamlit/
+  config.toml               # theme (brand colours)
+bi_agent/
+  config.py                 # env / secrets loading
+  monday_client.py          # read-only monday.com GraphQL client (paginated)
+  normalize.py              # pandas cleaning + data-quality caveats
+  data_store.py             # fetch -> clean -> cache bridge
+  analytics.py              # deterministic BI computations (tool bodies)
+  agent.py                  # Gemini tool-calling agent
 ```
+
+### UI at a glance
+- **📊 Overview tab** — at-a-glance metric cards (open pipeline, weighted
+  pipeline, won revenue, collection rate), a *won-revenue-by-sector* bar chart,
+  and an *open-pipeline-by-stage* funnel, plus the data-quality caveats.
+- **💬 Ask the agent tab** — conversational chat with suggested-question chips.
 
 ---
 
@@ -136,13 +147,13 @@ DATA_CACHE_TTL=300
 ## 6. Run locally
 
 ```bash
-cd app
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
 Open http://localhost:8501 and try:
 - "Give me a leadership update."
+- "Of the deals we won, how many are being executed and billed?" (cross-board join)
 - "How's our pipeline looking for Renewables this quarter?"
 - "Which sectors are driving the most won revenue?"
 - "What's our win rate by sector?"
@@ -154,10 +165,27 @@ Open http://localhost:8501 and try:
 
 1. Push this repo to GitHub.
 2. Go to https://share.streamlit.io → **New app** → pick the repo.
-3. Set **Main file path** to `app/streamlit_app.py`.
+3. Set **Main file path** to `streamlit_app.py`.
 4. In **Advanced settings → Secrets**, paste the same keys as in `.env`
    (TOML format, e.g. `GEMINI_API_KEY = "..."`).
 5. Deploy. You get a public URL that needs no local setup.
+
+---
+
+## 7a. What the agent can answer
+
+Each capability is a deterministic tool the LLM can call:
+
+- **Pipeline health** — open/won/lost counts, total & probability-weighted pipeline
+  value, stage breakdown; optional sector and fiscal-quarter filters.
+- **Revenue by sector** — deal value grouped by sector for a chosen status.
+- **Sector performance** — win/loss/open counts and win-rate per sector.
+- **Operational metrics** — work-order execution, billing and collection health.
+- **Leadership update** — a combined executive briefing across both boards.
+- **Cross-board join** — *of the deals we won, how many are actually being
+  executed and billed?* Matches Won deals to Work Orders by normalized deal name
+  and reports execution coverage plus execution/billing status (name-based
+  matching, so results are clearly caveated as approximate).
 
 ---
 
