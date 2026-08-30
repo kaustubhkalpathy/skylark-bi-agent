@@ -160,10 +160,13 @@ def _clean_month(value: Any) -> str | None:
     return s  # leave as-is if unrecognized; caveat handled elsewhere
 
 
-def _title_case(value: str | None) -> str | None:
-    if not value:
-        return value
-    return " ".join(w.capitalize() for w in value.split())
+def _title_case(value: Any) -> str | None:
+    # Guard against non-strings (e.g. float NaN, which is truthy) that pandas
+    # may hand us. Coerce to a clean string first.
+    cleaned = _clean_str(value)
+    if not cleaned:
+        return cleaned
+    return " ".join(w.capitalize() for w in cleaned.split())
 
 
 def _drop_repeated_headers(df: pd.DataFrame, key_col: str, header_tokens: set[str]) -> tuple[pd.DataFrame, int]:
